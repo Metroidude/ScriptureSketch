@@ -23,42 +23,60 @@ struct MetadataFormView: View {
     
     var body: some View {
         NavigationStack {
-            Form {
-                Section(header: Text("Scripture Reference")) {
-                    Picker("Book", selection: $selectedBookIndex) {
-                        ForEach(BibleDataStore.shared.books) { bookItem in
-                            Text(bookItem.name).tag(bookItem.id - 1) // 0-based index
+            ScrollView {
+                VStack(spacing: 20) {
+                    Group {
+                        Text("Scripture Reference")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        
+                        Picker("Book", selection: $selectedBookIndex) {
+                            ForEach(BibleDataStore.shared.books) { bookItem in
+                                Text(bookItem.name).tag(bookItem.id - 1) // 0-based index
+                            }
+                        }
+                        .onChange(of: selectedBookIndex) { newValue in
+                            updateBookAndChapters(index: newValue)
+                        }
+                        
+                        Picker("Chapter", selection: $chapter) {
+                            ForEach(availableChapters, id: \.self) { num in
+                                Text("\(num)").tag(num)
+                            }
+                        }
+                        
+                        HStack {
+                            Text("Verse")
+                            TextField("#", text: $verse)
+                                .textFieldStyle(.roundedBorder)
+                                #if !os(macOS)
+                                .keyboardType(.numberPad)
+                                #endif
+                                .multilineTextAlignment(.trailing)
                         }
                     }
-                    .onChange(of: selectedBookIndex) { newValue in
-                        updateBookAndChapters(index: newValue)
-                    }
+                    .padding()
+                    .background(Color.gray.opacity(0.1))
+                    .cornerRadius(8)
                     
-                    Picker("Chapter", selection: $chapter) {
-                        ForEach(availableChapters, id: \.self) { num in
-                            Text("\(num)").tag(num)
+                    Group {
+                        Text("The Icon Word")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        
+                        TextField("Center Word (e.g. Faith)", text: $word)
+                            .textFieldStyle(.roundedBorder)
+                        
+                        Picker("Text Color", selection: $textColor) {
+                            Text("Black").tag("black")
+                            Text("White").tag("white")
                         }
+                        .pickerStyle(.segmented)
                     }
+                    .padding()
+                    .background(Color.gray.opacity(0.1))
+                    .cornerRadius(8)
                     
-                    HStack {
-                        Text("Verse")
-                        TextField("#", text: $verse)
-                            .keyboardType(.numberPad)
-                            .multilineTextAlignment(.trailing)
-                    }
-                }
-                
-                Section(header: Text("The Icon Word")) {
-                    TextField("Center Word (e.g. Faith)", text: $word)
-                    
-                    Picker("Text Color", selection: $textColor) {
-                        Text("Black").tag("black")
-                        Text("White").tag("white")
-                    }
-                    .pickerStyle(.segmented)
-                }
-                
-                Section {
                     NavigationLink(destination: DrawingEditorView(
                         book: book,
                         chapter: chapter,
@@ -74,8 +92,9 @@ struct MetadataFormView: View {
                             .cornerRadius(10)
                     }
                     .disabled(!isValid)
+                    .buttonStyle(.plain) // Important for macOS to not look like a link text
                 }
-                .listRowBackground(Color.clear)
+                .padding()
             }
             .navigationTitle("New Sketch")
             .onAppear {

@@ -48,11 +48,10 @@ struct DrawingEditorView: View {
             .padding()
             // Capture geometry for image generation size
             .background(
-                GeometryReader { geo -> Color in
-                    DispatchQueue.main.async {
+                GeometryReader { geo in
+                    Color.clear.onAppear {
                         self.canvasRect = geo.frame(in: .local)
                     }
-                    return Color.clear
                 }
             )
             
@@ -126,7 +125,7 @@ struct DrawingEditorView: View {
     }
     
     @MainActor
-    func generateSnapshot() -> UIImage {
+    func generateSnapshot() -> PlatformImage {
         // Recreate the ZStack as a View for rendering
         let renderer = ImageRenderer(content:
             ZStack {
@@ -142,14 +141,20 @@ struct DrawingEditorView: View {
                 // ImageRenderer can handle standard SwiftUI views.
                 // PKCanvasView isn't directly renderable by ImageRenderer easily without Image(uiImage:...)
                 // Standard PKDrawing approach:
-                Image(uiImage: drawing.image(from: CGRect(x: 0, y: 0, width: 1024, height: 1024), scale: 1.0))
+                Image(platformImage: drawing.image(from: CGRect(x: 0, y: 0, width: 1024, height: 1024), scale: 1.0))
             }
             .frame(width: 1024, height: 1024)
         )
         
+#if os(macOS)
+        if let nsImage = renderer.nsImage {
+            return nsImage
+        }
+#else
         if let uiImage = renderer.uiImage {
             return uiImage
         }
-        return UIImage()
+#endif
+        return PlatformImage()
     }
 }

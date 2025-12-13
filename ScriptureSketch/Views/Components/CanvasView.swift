@@ -1,21 +1,58 @@
 import SwiftUI
 import PencilKit
+#if os(macOS)
+import AppKit
+#endif
 
-struct CanvasView: UIViewRepresentable {
+// Ensure ViewRepresentable conforms correctly on both platforms
+struct CanvasView: ViewRepresentable {
     @Binding var drawing: PKDrawing
-    var toolPicker = PKToolPicker()
     
+    // PKToolPicker is iOS only
+    #if !os(macOS)
+    let toolPicker = PKToolPicker()
+    #endif
+    
+#if os(macOS)
+    // macOS Implementation: Read-Only via NSImageView
+    // Note: PKCanvasView is not available in native AppKit (requires Catalyst).
+    // We render the drawing as an image for display.
+    func makeNSView(context: Context) -> NSImageView {
+        let imageView = NSImageView()
+        imageView.imageScaling = .scaleProportionallyUpOrDown
+        imageView.contentTintColor = .black
+        return imageView
+    }
+    
+    func updateNSView(_ nsView: NSImageView, context: Context) {
+        // Render the PKDrawing to an NSImage
+        // We use a reasonably large rect to capture the drawing.
+        // In a real app, matching the view bounds is better, but here we use the binding.
+        let image = drawing.image(from: drawing.bounds, scale: 1.0)
+        nsView.image = image
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject {
+        var parent: CanvasView
+        init(_ parent: CanvasView) {
+            self.parent = parent
+        }
+    }
+    
+#else
+    // iOS Implementation
     func makeUIView(context: Context) -> PKCanvasView {
         let canvas = PKCanvasView()
         canvas.drawingPolicy = .anyInput
-        
-        // Transparent background so we can see the ZStack layers behind it
         canvas.backgroundColor = .clear
         canvas.isOpaque = false
         
         canvas.delegate = context.coordinator
         
-        // Attach tool picker
         toolPicker.setVisible(true, forFirstResponder: canvas)
         toolPicker.addObserver(canvas)
         canvas.becomeFirstResponder()
@@ -44,4 +81,5 @@ struct CanvasView: UIViewRepresentable {
             parent.drawing = canvasView.drawing
         }
     }
+#endif
 }

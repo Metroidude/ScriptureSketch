@@ -13,8 +13,8 @@ struct DetailGalleryView: View {
                 ForEach(items) { item in
                     NavigationLink(destination: SingleItemDetailView(item: item)) {
                         VStack {
-                            if let imageData = item.imageData, let uiImage = UIImage(data: imageData) {
-                                Image(uiImage: uiImage)
+                        if let imageData = item.imageData, let platformImage = PlatformImage.from(data: imageData) {
+                            Image(platformImage: platformImage)
                                     .resizable()
                                     .scaledToFit()
                                     .cornerRadius(8)

@@ -119,7 +119,7 @@ struct MainCatalogView: View {
             .navigationTitle("ScriptureSketch")
             .searchable(text: $searchText)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .primaryAction) {
                     Picker("Mode", selection: $viewMode) {
                         Text("Scripture").tag(ViewMode.scripture)
                         Text("Word").tag(ViewMode.word)
