@@ -13,6 +13,9 @@ struct DrawingEditorView: View {
     let word: String
     let textColor: String
     
+    // Optional existing item for Editing Mode
+    var itemToEdit: SketchItem?
+    
     // State for Drawing
     @State private var drawing = PKDrawing()
     @State private var canvasRect: CGRect = .zero
@@ -51,6 +54,10 @@ struct DrawingEditorView: View {
                 GeometryReader { geo in
                     Color.clear.onAppear {
                         self.canvasRect = geo.frame(in: .local)
+                        // If editing, load the drawing data
+                        if let item = itemToEdit, let data = item.drawingData {
+                             try? self.drawing = PKDrawing(data: data)
+                        }
                     }
                 }
             )
@@ -61,7 +68,7 @@ struct DrawingEditorView: View {
         .navigationBarBackButtonHidden(false)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
-                Button("Save") {
+                Button(itemToEdit != nil ? "Update" : "Save") {
                     saveSketch()
                 }
             }
@@ -82,42 +89,40 @@ struct DrawingEditorView: View {
             return
         }
         
-        let newSketch = SketchItem(context: viewContext)
-        newSketch.id = UUID()
-        newSketch.creationDate = Date()
-        newSketch.bookName = book
-        newSketch.chapter = Int16(chapter)
-        newSketch.verse = Int16(verse)
-        newSketch.centerWord = word
-        newSketch.textColor = textColor
-        newSketch.drawingData = drawing.dataRepresentation()
-        newSketch.imageData = imageData
+        let sketch: SketchItem
+        if let existingItem = itemToEdit {
+            sketch = existingItem
+            // Do NOT create new UUID or date if updating, preserve history (unless requested otherwise)
+        } else {
+            sketch = SketchItem(context: viewContext)
+            sketch.id = UUID()
+            sketch.creationDate = Date()
+        }
+        
+        // Update fields
+        sketch.bookName = book
+        sketch.chapter = Int16(chapter)
+        sketch.verse = Int16(verse)
+        sketch.centerWord = word
+        sketch.textColor = textColor
+        sketch.drawingData = drawing.dataRepresentation()
+        sketch.imageData = imageData
         
         // Find Canonical Order
         if let bookData = BibleDataStore.shared.books.first(where: { $0.name == book }) {
-            newSketch.bookOrder = Int16(bookData.id)
+            sketch.bookOrder = Int16(bookData.id)
         } else {
-            newSketch.bookOrder = 0 // Fallback
+            sketch.bookOrder = 0 // Fallback
         }
         
         do {
             try viewContext.save()
-            // Dismiss the full creation flow (MetadataFormView was the root of this sheet)
-            // Ideally we need to dismiss the parent sheet.
-            // Since we are pushed, dismiss() pops us. We might need a binding to close the sheet from the root.
-            // For now, I'll use a hack or assume the parent handles dismissal on save if I can't reach it.
-            // Actually, if this View is in a NavigationStack presented as a sheet, `dismiss()` usually dismisses the sheet if it's the only thing? 
-            // No, `dismiss()` on a pushed view pops it.
-            // I need to use a binding passed down or NotificationCenter.
-            // Let's use NotificationCenter for simplicity in this loose coupling, 
-            // OR better: rely on the user tapping "Done" or handle this via a Root Environment Binding.
-            
-            // Re-eval check: MetadataFormView is start of sheet.
-            // To dismiss the SHEet from here, we can search for a window root or use a specific binding.
-            // I'll assume standard dismiss behavior might need help. 
-            // Correct SwiftUI pattern: Pass a binding `isPresented` from the sheet root. 
-            // I will fix MetadataFormView to accept a binding if needed, but for now let's try Notification.
+            // Dismiss flow
             NotificationCenter.default.post(name: NSNotification.Name("DismissCreationSheet"), object: nil)
+            // If pushed (Edit Mode), we also need to pop back.
+            if itemToEdit != nil {
+                dismiss() 
+            }
         } catch {
             errorMessage = error.localizedDescription
             showingError = true
@@ -141,6 +146,7 @@ struct DrawingEditorView: View {
                 // ImageRenderer can handle standard SwiftUI views.
                 // PKCanvasView isn't directly renderable by ImageRenderer easily without Image(uiImage:...)
                 // Standard PKDrawing approach:
+                // FIX: Use explicit 1024x1024 rect instead of drawing.bounds to avoid cropping/offset issues
                 Image(platformImage: drawing.image(from: CGRect(x: 0, y: 0, width: 1024, height: 1024), scale: 1.0))
             }
             .frame(width: 1024, height: 1024)

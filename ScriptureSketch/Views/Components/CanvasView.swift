@@ -8,10 +8,7 @@ import AppKit
 struct CanvasView: ViewRepresentable {
     @Binding var drawing: PKDrawing
     
-    // PKToolPicker is iOS only
-    #if !os(macOS)
-    let toolPicker = PKToolPicker()
-    #endif
+    // PKToolPicker is managed by Coordinator on iOS
     
 #if os(macOS)
     // macOS Implementation: Read-Only via NSImageView
@@ -46,6 +43,7 @@ struct CanvasView: ViewRepresentable {
 #else
     // iOS Implementation
     func makeUIView(context: Context) -> PKCanvasView {
+        print("DEBUG: makeUIView called for CanvasView")
         let canvas = PKCanvasView()
         canvas.drawingPolicy = .anyInput
         canvas.backgroundColor = .clear
@@ -53,8 +51,9 @@ struct CanvasView: ViewRepresentable {
         
         canvas.delegate = context.coordinator
         
-        toolPicker.setVisible(true, forFirstResponder: canvas)
-        toolPicker.addObserver(canvas)
+        // Use the coordinator's tool picker
+        context.coordinator.toolPicker.setVisible(true, forFirstResponder: canvas)
+        context.coordinator.toolPicker.addObserver(canvas)
         canvas.becomeFirstResponder()
         
         return canvas
@@ -72,6 +71,7 @@ struct CanvasView: ViewRepresentable {
     
     class Coordinator: NSObject, PKCanvasViewDelegate {
         var parent: CanvasView
+        let toolPicker = PKToolPicker()
         
         init(_ parent: CanvasView) {
             self.parent = parent
@@ -82,4 +82,8 @@ struct CanvasView: ViewRepresentable {
         }
     }
 #endif
+}
+
+#Preview {
+    CanvasView(drawing: .constant(PKDrawing()))
 }

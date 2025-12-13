@@ -1,5 +1,6 @@
 import SwiftUI
 import PencilKit
+import CoreData
 
 struct SingleItemDetailView: View {
     @Environment(\.managedObjectContext) private var viewContext
@@ -83,11 +84,8 @@ struct SingleItemDetailView: View {
                     chapter: Int(item.chapter),
                     verse: Int(item.verse),
                     word: word,
-                    textColor: color
-                    // Note: DrawingEditorView currently saves a NEW item. 
-                    // Making it update the existing item would require passing the SketchItem to it.
-                    // Accessing the private `drawing` state in DrawingEditorView is also hard.
-                    // I will leave this as a "Create New Version" flow or note the limitation.
+                    textColor: color,
+                    itemToEdit: item
                  )
             }
         }

@@ -116,15 +116,16 @@ struct MainCatalogView: View {
                     }
                 }
             }
-            .navigationTitle("ScriptureSketch")
-            .searchable(text: $searchText)
+            .navigationTitle("")
+            .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always))
             .toolbar {
-                ToolbarItem(placement: .primaryAction) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Picker("Mode", selection: $viewMode) {
                         Text("Scripture").tag(ViewMode.scripture)
                         Text("Word").tag(ViewMode.word)
                     }
                     .pickerStyle(.segmented)
+                    .frame(width: 200)
                 }
                 
                 ToolbarItem(placement: .primaryAction) {
@@ -163,4 +164,9 @@ struct BindingMetadataFormWrapper: View {
             textColor: $textColor
         )
     }
+}
+
+#Preview {
+    MainCatalogView()
+        .environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
 }
