@@ -97,13 +97,13 @@ struct PersistenceController {
             newItem.chapter = Int16(sample.chapter)
             newItem.verse = Int16(sample.verse)
             newItem.centerWord = sample.word
-            newItem.textColor = sample.color
+            newItem.textPosition = sample.color // "below" or "top"
             newItem.bookOrder = Int16(sample.order)
             newItem.sharedDrawingId = wordToSharedId[sample.word]
 
             // Only master entries get image data (simulates real user flow)
             if sample.isMaster {
-                newItem.imageData = generatePreviewImage(word: sample.word, textColor: sample.color)
+                newItem.imageData = generatePreviewImage(word: sample.word, textPosition: sample.color)
             }
             // Linked entries have nil imageData - they reference the master's drawing
         }
@@ -117,7 +117,7 @@ struct PersistenceController {
     }()
     
     /// Generates a simple preview image with the word centered
-    private static func generatePreviewImage(word: String, textColor: String) -> Data? {
+    static func generatePreviewImage(word: String, textPosition: String) -> Data? {
         #if os(iOS)
         let size = CGSize(width: 256, height: 256)
         let renderer = UIGraphicsImageRenderer(size: size)
@@ -127,7 +127,8 @@ struct PersistenceController {
             context.fill(CGRect(origin: .zero, size: size))
             
             // Draw word
-            let textColorUI: UIColor = textColor == "white" ? .lightGray : .black
+            // For preview/sample data, we default to black text on white background
+            let textColorUI: UIColor = .black
             let attributes: [NSAttributedString.Key: Any] = [
                 .font: UIFont.boldSystemFont(ofSize: 40),
                 .foregroundColor: textColorUI
@@ -157,7 +158,11 @@ struct PersistenceController {
         NSColor.white.setFill()
         NSRect(origin: .zero, size: size).fill()
         
-        let textColorNS: NSColor = textColor == "white" ? .lightGray : .black
+        NSColor.white.setFill()
+        NSRect(origin: .zero, size: size).fill()
+        
+        // For preview/sample data, we default to black text on white background
+        let textColorNS: NSColor = .black
         let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.boldSystemFont(ofSize: 40),
             .foregroundColor: textColorNS
@@ -231,11 +236,11 @@ struct PersistenceController {
         centerWordAttr.isOptional = false
         centerWordAttr.defaultValue = ""
 
-        let textColorAttr = NSAttributeDescription()
-        textColorAttr.name = "textColor"
-        textColorAttr.attributeType = .stringAttributeType
-        textColorAttr.isOptional = false
-        textColorAttr.defaultValue = "below"  // "below" = text under drawing, "top" = text over drawing
+        let textPositionAttr = NSAttributeDescription()
+        textPositionAttr.name = "textPosition"
+        textPositionAttr.attributeType = .stringAttributeType
+        textPositionAttr.isOptional = false
+        textPositionAttr.defaultValue = "below"  // "below" = text under drawing, "top" = text over drawing
         
         let drawingDataAttr = NSAttributeDescription()
         drawingDataAttr.name = "drawingData"
@@ -247,7 +252,14 @@ struct PersistenceController {
         imageDataAttr.name = "imageData"
         imageDataAttr.attributeType = .binaryDataAttributeType
         imageDataAttr.isOptional = true
+        imageDataAttr.isOptional = true
         imageDataAttr.allowsExternalBinaryDataStorage = true
+
+        let imageDataDarkAttr = NSAttributeDescription()
+        imageDataDarkAttr.name = "imageDataDark"
+        imageDataDarkAttr.attributeType = .binaryDataAttributeType
+        imageDataDarkAttr.isOptional = true
+        imageDataDarkAttr.allowsExternalBinaryDataStorage = true
 
         let sharedDrawingIdAttr = NSAttributeDescription()
         sharedDrawingIdAttr.name = "sharedDrawingId"
@@ -256,7 +268,7 @@ struct PersistenceController {
 
         sketchEntity.properties = [
             idAttr, dateAttr, bookNameAttr, chapterAttr, verseAttr, bookOrderAttr,
-            centerWordAttr, textColorAttr, drawingDataAttr, imageDataAttr, sharedDrawingIdAttr
+            centerWordAttr, textPositionAttr, drawingDataAttr, imageDataAttr, imageDataDarkAttr, sharedDrawingIdAttr
         ]
         
         model.entities = [sketchEntity]

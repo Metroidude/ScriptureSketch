@@ -155,21 +155,8 @@ private struct SketchGridCell: View {
 
     var body: some View {
         Group {
-            // Use effectiveImageData to handle linked items that reference a master
-            if let imageData = item.effectiveImageData, let platformImage = PlatformImage.from(data: imageData) {
-                Image(platformImage: platformImage)
-                    .resizable()
-                    .aspectRatio(1, contentMode: .fill)
-            } else {
-                Rectangle()
-                    .fill(Color.gray.opacity(0.2))
-                    .aspectRatio(1, contentMode: .fill)
-                    .overlay(
-                        Image(systemName: "photo")
-                            .font(.title2)
-                            .foregroundColor(.secondary)
-                    )
-            }
+            // Use AdaptiveSketchImage to handle dual mode support
+            AdaptiveSketchImage(item: item)
         }
         .clipped()
     }
@@ -189,7 +176,7 @@ private struct LockedScriptureFormWrapper: View {
     @State private var chapter: Int
     @State private var verse: String
     @State private var word = ""
-    @State private var textColor = "below"
+    @State private var textPosition = "below"
 
     init(isPresented: Binding<Bool>, book: String, chapter: Int, verse: Int) {
         self._isPresented = isPresented
@@ -208,7 +195,7 @@ private struct LockedScriptureFormWrapper: View {
             chapter: $chapter,
             verse: $verse,
             word: $word,
-            textColor: $textColor,
+            textPosition: $textPosition,
             lockedScripture: (lockedBook, lockedChapter, lockedVerse)
         )
     }

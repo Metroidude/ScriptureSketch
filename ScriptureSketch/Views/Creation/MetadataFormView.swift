@@ -1,12 +1,16 @@
 import SwiftUI
+import CoreData
 
 struct MetadataFormView: View {
+    @Environment(\.managedObjectContext) private var viewContext
+    @Environment(\.dismiss) private var dismiss // For macOS dismissal
+
     // External bindings for final values
     @Binding var book: String
     @Binding var chapter: Int
     @Binding var verse: String
     @Binding var word: String
-    @Binding var textColor: String
+    @Binding var textPosition: String
 
     // Optional parameter to pre-fill scripture fields
     var lockedScripture: (book: String, chapter: Int, verse: Int)? = nil
@@ -27,14 +31,14 @@ struct MetadataFormView: View {
         chapter: Binding<Int>,
         verse: Binding<String>,
         word: Binding<String>,
-        textColor: Binding<String>,
+        textPosition: Binding<String>,
         lockedScripture: (book: String, chapter: Int, verse: Int)? = nil
     ) {
         self._book = book
         self._chapter = chapter
         self._verse = verse
         self._word = word
-        self._textColor = textColor
+        self._textPosition = textPosition
         self.lockedScripture = lockedScripture
 
         // Determine initial values from lockedScripture or defaults
@@ -81,13 +85,10 @@ struct MetadataFormView: View {
     
     var body: some View {
         NavigationStack {
-            ScrollView {
+            VStack(spacing: 0) {
+                ScrollView {
                 VStack(spacing: 20) {
                     Group {
-                        Text("Scripture Reference")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-
                         // "Slot Machine" Style Pickers (always editable)
                         HStack(spacing: 0) {
                             // BOOK WHEEL
@@ -141,15 +142,11 @@ struct MetadataFormView: View {
                     .cornerRadius(8)
                     
                     Group {
-                        Text("The Keyword")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-
                         TextField("Grace, Faith, etc.", text: $word)
                             .textFieldStyle(.roundedBorder)
                             .focused($isWordFieldFocused)
                         
-                        Picker("Text Layer", selection: $textColor) {
+                        Picker("Text Position", selection: $textPosition) {
                             Text("Text Below").tag("below")
                             Text("Text On Top").tag("top")
                         }
@@ -159,26 +156,54 @@ struct MetadataFormView: View {
                     .background(Color.gray.opacity(0.1))
                     .cornerRadius(8)
                     
-                    NavigationLink(destination: DrawingEditorView(
-                        book: BibleDataStore.shared.books[selectedBookIndex].name,
-                        chapter: selectedChapter,
-                        verse: selectedVerse,
-                        word: word,
-                        textColor: textColor
-                    )) {
-                        Text("Next: Draw Icon")
-                            .frame(maxWidth: .infinity)
-                            .foregroundColor(.white)
-                            .padding()
-                            .background(isValid ? Color.blue : Color.gray)
-                            .cornerRadius(10)
-                    }
-                    .disabled(!isValid)
-                    .buttonStyle(.plain) // Important for macOS to not look like a link text
                 }
                 .padding()
             }
+            .scrollBounceBehavior(.basedOnSize)
+            
+            // Bottom Action Area
+            VStack {
+                #if os(macOS)
+                Button(action: {
+                    saveReferenceOnly()
+                }) {
+                    Text("Save Reference")
+                        .frame(maxWidth: .infinity)
+                        .foregroundColor(.white)
+                        .padding()
+                        .background(isValid ? Color.blue : Color.gray)
+                        .cornerRadius(10)
+                }
+                .disabled(!isValid)
+                .buttonStyle(.plain)
+                #else
+                NavigationLink(destination: DrawingEditorView(
+                    book: BibleDataStore.shared.books[selectedBookIndex].name,
+                    chapter: selectedChapter,
+                    verse: selectedVerse,
+                    word: word,
+                    textPosition: textPosition
+                )) {
+                    Text("Next: Draw Icon")
+                        .frame(maxWidth: .infinity)
+                        .foregroundColor(.white)
+                        .padding()
+                        .background(isValid ? Color.blue : Color.gray)
+                        .cornerRadius(10)
+                }
+                .disabled(!isValid)
+                #endif
+            }
+            .padding()
+            }
             .navigationTitle("New Sketch")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
             .onAppear {
                 // Sync bindings with internal state on appear
                 syncBindings()
@@ -220,5 +245,45 @@ struct MetadataFormView: View {
             selectedVerse = 1
         }
         syncBindings()
+    }
+    
+    // MARK: - Saving (macOS Read-Only Flow)
+    func saveReferenceOnly() {
+        let sketch = SketchItem(context: viewContext)
+        sketch.id = UUID()
+        sketch.creationDate = Date()
+        sketch.sharedDrawingId = UUID()
+        
+        sketch.bookName = book
+        sketch.chapter = Int16(chapter)
+        sketch.verse = Int16(verse) ?? 1
+        sketch.centerWord = word
+        sketch.textPosition = textPosition
+        sketch.drawingData = nil // Explicitly nil for reference-only
+        
+        // Generate text-only preview image
+        sketch.imageData = PersistenceController.generatePreviewImage(word: word, textPosition: textPosition)
+        // For Dark Mode, we might want inverted colors, but generatePreviewImage handles basics.
+        // Persistence.swift implies generatePreviewImage returns one image.
+        // Let's call it again or trust AdaptiveSketchImage handles single image if needed.
+        // Detailed check: Persistence.swift's generatePreviewImage is static and returns Data?.
+        
+        // Find Canonical Order
+        if let bookData = BibleDataStore.shared.books.first(where: { $0.name == book }) {
+            sketch.bookOrder = Int16(bookData.id)
+        } else {
+            sketch.bookOrder = 0 // Fallback
+        }
+        
+        do {
+            try viewContext.save()
+            // Dismiss
+            // On macOS, this view is likely in a sheet.
+            // Using the NotificationCenter dismissal logic same as DrawingEditorView for consistency
+            NotificationCenter.default.post(name: NSNotification.Name("DismissCreationSheet"), object: nil)
+            dismiss()
+        } catch {
+            print("Error saving reference: \(error.localizedDescription)")
+        }
     }
 }

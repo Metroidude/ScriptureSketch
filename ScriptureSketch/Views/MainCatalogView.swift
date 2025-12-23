@@ -175,7 +175,12 @@ struct MainCatalogView: View {
                 
                 ToolbarItem(placement: .primaryAction) {
                     Button(action: { showingCreationSheet = true }) {
+                        #if os(macOS)
+                        Image(systemName: "book.closed")
+                            .help("Add Reference")
+                        #else
                         Image(systemName: "plus")
+                        #endif
                     }
                 }
             }
@@ -198,7 +203,7 @@ struct BindingMetadataFormWrapper: View {
     @State private var chapter = 1
     @State private var verse = ""
     @State private var word = ""
-    @State private var textColor = "below"
+    @State private var textPosition = "below"
     
     var body: some View {
         MetadataFormView(
@@ -206,7 +211,7 @@ struct BindingMetadataFormWrapper: View {
             chapter: $chapter,
             verse: $verse,
             word: $word,
-            textColor: $textColor
+            textPosition: $textPosition
         )
     }
 }

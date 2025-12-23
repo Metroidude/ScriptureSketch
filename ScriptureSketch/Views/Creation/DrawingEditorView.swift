@@ -13,7 +13,7 @@ struct DrawingEditorView: View {
     let chapter: Int
     let verse: Int
     let word: String
-    let textColor: String
+    let textPosition: String
     
     // Optional existing item for Editing Mode
     var itemToEdit: SketchItem?
@@ -21,6 +21,8 @@ struct DrawingEditorView: View {
     // State for Drawing
     @State private var drawing = PKDrawing()
     @State private var canvasRect: CGRect = .zero
+    
+    @StateObject private var canvasState = CanvasState()
     
     // Alert state
     @State private var showingError = false
@@ -35,18 +37,16 @@ struct DrawingEditorView: View {
                 // Layer 1: White Background
                 Color.white
 
-                // Layer ordering based on textColor (now represents position)
-                if textColor == "top" {
+                // Layer ordering based on textPosition
+                if textPosition == "top" {
                     // Drawing below, text on top
-                    CanvasView(drawing: $drawing)
+                    CanvasView(drawing: $drawing, canvasState: canvasState)
 
                     Text(word)
                         .font(.system(size: 100, weight: .bold))
                         .lineLimit(1)
                         .minimumScaleFactor(0.1)
-                        .foregroundStyle(
-                            .black.shadow(.drop(color: .white, radius: 2))
-                        )
+                        .foregroundStyle(.black)
                         .padding(20)
                         .allowsHitTesting(false)
                 } else {
@@ -55,13 +55,11 @@ struct DrawingEditorView: View {
                         .font(.system(size: 100, weight: .bold))
                         .lineLimit(1)
                         .minimumScaleFactor(0.1)
-                        .foregroundStyle(
-                            .black.shadow(.drop(color: .white, radius: 2))
-                        )
+                        .foregroundStyle(.black)
                         .padding(20)
                         .allowsHitTesting(false)
 
-                    CanvasView(drawing: $drawing)
+                    CanvasView(drawing: $drawing, canvasState: canvasState)
                 }
             }
             .aspectRatio(1, contentMode: .fit) // Square Requirement
@@ -73,17 +71,14 @@ struct DrawingEditorView: View {
                 GeometryReader { geo in
                     Color.clear.onAppear {
                         self.canvasRect = geo.frame(in: .local)
-                        // If editing, load the drawing data
-                        if let item = itemToEdit, let data = item.drawingData {
-                             try? self.drawing = PKDrawing(data: data)
-                        }
+                        print("DEBUG: GeometryReader onAppear. Rect: \(self.canvasRect)")
                     }
                 }
             )
             
             Spacer()
         }
-        .navigationTitle("\(book) \(chapter):\(verse)")
+        .navigationTitle("")
         .navigationBarBackButtonHidden(false)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
@@ -92,22 +87,20 @@ struct DrawingEditorView: View {
                 }
             }
             
-            ToolbarItemGroup(placement: .bottomBar) {
+            ToolbarItemGroup(placement: .navigationBarLeading) {
                 Button(action: {
-                    undoManager?.undo()
+                    canvasState.undoManager?.undo()
                 }) {
                     Image(systemName: "arrow.uturn.backward")
                 }
-                .disabled(!(undoManager?.canUndo ?? false))
+                .disabled(!(canvasState.undoManager?.canUndo ?? false))
                 
                 Button(action: {
-                    undoManager?.redo()
+                    canvasState.undoManager?.redo()
                 }) {
                     Image(systemName: "arrow.uturn.forward")
                 }
-                .disabled(!(undoManager?.canRedo ?? false))
-                
-                Spacer()
+                .disabled(!(canvasState.undoManager?.canRedo ?? false))
             }
         }
         .alert("Error", isPresented: $showingError) {
@@ -115,13 +108,19 @@ struct DrawingEditorView: View {
         } message: {
             Text(errorMessage)
         }
+        .onAppear {
+            // Load drawing data if editing
+            if let item = itemToEdit, let data = item.drawingData {
+                try? self.drawing = PKDrawing(data: data)
+            }
+        }
     }
     
     func saveSketch() {
-        // Generate Image
-        let image = generateSnapshot()
-        guard let imageData = image.pngData() else {
-            errorMessage = "Failed to generate image."
+        // Generate Images for both modes
+        guard let imageLight = generateSnapshot(colorScheme: .light).pngData(),
+              let imageDark = generateSnapshot(colorScheme: .dark).pngData() else {
+            errorMessage = "Failed to generate images."
             showingError = true
             return
         }
@@ -145,9 +144,10 @@ struct DrawingEditorView: View {
         sketch.chapter = Int16(chapter)
         sketch.verse = Int16(verse)
         sketch.centerWord = word
-        sketch.textColor = textColor
+        sketch.textPosition = textPosition
         sketch.drawingData = drawing.dataRepresentation()
-        sketch.imageData = imageData
+        sketch.imageData = imageLight
+        sketch.imageDataDark = imageDark
         
         // Find Canonical Order
         if let bookData = BibleDataStore.shared.books.first(where: { $0.name == book }) {
@@ -171,7 +171,7 @@ struct DrawingEditorView: View {
     }
     
     @MainActor
-    func generateSnapshot() -> PlatformImage {
+    func generateSnapshot(colorScheme: ColorScheme) -> PlatformImage {
         // Capture the canvas size and scale drawing to fill 1024x1024 output
         let targetSize: CGFloat = 1024.0
         let sourceRect = (canvasRect == .zero) ? drawing.bounds : canvasRect
@@ -180,12 +180,14 @@ struct DrawingEditorView: View {
         // Pre-render the drawing image
         let drawingImage = drawing.image(from: sourceRect, scale: scale)
         
+        // Determine text color based on requested scheme
+        let wordColor: Color = (colorScheme == .light) ? .black : .white
+        
         // Recreate the ZStack as a View for rendering with same layer order as editor
         let renderer = ImageRenderer(content:
             ZStack {
-                // Background removed for transparency
-
-                if textColor == "top" {
+                // Transparent Background (No background modifier)
+                if textPosition == "top" {
                     // Drawing below, text on top
                     Image(platformImage: drawingImage)
                         .resizable()
@@ -195,9 +197,7 @@ struct DrawingEditorView: View {
                         .font(.system(size: 300, weight: .bold))
                         .lineLimit(1)
                         .minimumScaleFactor(0.1)
-                        .foregroundStyle(
-                            .black.shadow(.drop(color: .white, radius: 4))
-                        )
+                        .foregroundStyle(wordColor)
                         .padding(60)
                 } else {
                     // Text below, drawing on top (default)
@@ -205,9 +205,7 @@ struct DrawingEditorView: View {
                         .font(.system(size: 300, weight: .bold))
                         .lineLimit(1)
                         .minimumScaleFactor(0.1)
-                        .foregroundStyle(
-                            .black.shadow(.drop(color: .white, radius: 4))
-                        )
+                        .foregroundStyle(wordColor)
                         .padding(60)
 
                     Image(platformImage: drawingImage)
@@ -231,6 +229,7 @@ struct DrawingEditorView: View {
     }
 }
 
+
 #Preview {
     NavigationStack {
         DrawingEditorView(
@@ -238,7 +237,7 @@ struct DrawingEditorView: View {
             chapter: 3,
             verse: 16,
             word: "LOVE",
-            textColor: "black"
+            textPosition: "below"
         )
     }
 }

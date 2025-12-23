@@ -9,9 +9,10 @@ public class SketchItem: NSManagedObject {
     @NSManaged public var chapter: Int16
     @NSManaged public var verse: Int16
     @NSManaged public var centerWord: String?
-    @NSManaged public var textColor: String? // "below" (text under drawing) or "top" (text over drawing)
+    @NSManaged public var textPosition: String? // "below" (text under drawing) or "top" (text over drawing)
     @NSManaged public var drawingData: Data?
     @NSManaged public var imageData: Data?
+    @NSManaged public var imageDataDark: Data?
     @NSManaged public var bookOrder: Int16
     @NSManaged public var sharedDrawingId: UUID?
     
@@ -49,6 +50,33 @@ extension SketchItem: Identifiable {
 
         if let master = try? context.fetch(request).first {
             return master.imageData
+        }
+
+        return nil
+    }
+
+    /// Returns imageDataDark from this item, or from the master item if this is a linked reference.
+    public var effectiveImageDataDark: Data? {
+        // If this item has its own image data, use it
+        if let data = imageDataDark {
+            return data
+        }
+
+        // If this is a linked item, find the master with the same sharedDrawingId
+        guard let drawingId = sharedDrawingId,
+              let context = managedObjectContext else {
+            return nil
+        }
+
+        let request: NSFetchRequest<SketchItem> = SketchItem.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "sharedDrawingId == %@ AND imageDataDark != nil",
+            drawingId as CVarArg
+        )
+        request.fetchLimit = 1
+
+        if let master = try? context.fetch(request).first {
+            return master.imageDataDark
         }
 
         return nil

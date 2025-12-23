@@ -145,7 +145,7 @@ struct AddReferenceFormView: View {
         newItem.chapter = Int16(chapter)
         newItem.verse = Int16(selectedVerseInt)
         newItem.centerWord = word
-        newItem.textColor = "below" // Default layer position (text below drawing)
+        newItem.textPosition = "below" // Default layer position (text below drawing)
         newItem.sharedDrawingId = sharedDrawingId
         // Linked items don't store their own drawing - they reference the master
         newItem.drawingData = nil

@@ -1,12 +1,52 @@
 import SwiftUI
+import Combine
 import PencilKit
 #if os(macOS)
 import AppKit
 #endif
 
+// Helper to expose internal state like UndoManager and observe its changes
+class CanvasState: ObservableObject {
+    @Published var undoManager: UndoManager? {
+        didSet {
+            setupObservers()
+        }
+    }
+    
+    private var observers: [AnyCancellable] = []
+    
+    private func setupObservers() {
+        observers.removeAll()
+        
+        guard let manager = undoManager else { return }
+        
+        // Listen for UndoManager changes to refresh UI (enable/disable buttons)
+        let center = NotificationCenter.default
+        let names = [
+            NSNotification.Name.NSUndoManagerDidUndoChange,
+            NSNotification.Name.NSUndoManagerDidRedoChange,
+            NSNotification.Name.NSUndoManagerDidOpenUndoGroup,
+            NSNotification.Name.NSUndoManagerDidCloseUndoGroup,
+            NSNotification.Name.NSUndoManagerCheckpoint // Important for grouping
+        ]
+        
+        for name in names {
+            center.publisher(for: name, object: manager)
+                .sink { [weak self] _ in
+                    DispatchQueue.main.async {
+                        self?.objectWillChange.send()
+                    }
+                }
+                .store(in: &observers)
+        }
+        print("DEBUG: CanvasState setupObservers complete for manager: \(manager)")
+    }
+}
+
 // Ensure ViewRepresentable conforms correctly on both platforms
 struct CanvasView: ViewRepresentable {
     @Binding var drawing: PKDrawing
+    @ObservedObject var canvasState: CanvasState
     
     // PKToolPicker is managed by Coordinator on iOS
     
@@ -43,11 +83,16 @@ struct CanvasView: ViewRepresentable {
 #else
     // iOS Implementation
     func makeUIView(context: Context) -> PKCanvasView {
-        print("DEBUG: makeUIView called for CanvasView")
         let canvas = PKCanvasView()
         canvas.drawingPolicy = .anyInput
         canvas.backgroundColor = .clear
         canvas.isOpaque = false
+        
+        // Expose Native UndoManager
+        // Dispatch async to ensure it's captured after init if needed, though usually immediate is fine.
+        DispatchQueue.main.async {
+            context.coordinator.parent.canvasState.undoManager = canvas.undoManager
+        }
         
         canvas.delegate = context.coordinator
         
@@ -60,6 +105,9 @@ struct CanvasView: ViewRepresentable {
     }
     
     func updateUIView(_ uiView: PKCanvasView, context: Context) {
+        // Vital: Update coordinator's parent to the latest struct so the binding reference is current
+        context.coordinator.parent = self
+        
         if uiView.drawing != drawing {
             uiView.drawing = drawing
         }
@@ -78,7 +126,11 @@ struct CanvasView: ViewRepresentable {
         }
         
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
-            parent.drawing = canvasView.drawing
+            print("DEBUG: canvasViewDrawingDidChange. Strokes: \(canvasView.drawing.strokes.count)")
+            // Avoid cycle: Only update if different
+            if parent.drawing != canvasView.drawing {
+                 parent.drawing = canvasView.drawing
+            }
         }
     }
 #endif
@@ -122,7 +174,7 @@ struct CanvasView: ViewRepresentable {
 }
 
 #Preview("Empty Canvas") {
-    CanvasView(drawing: .constant(PKDrawing()))
+    CanvasView(drawing: .constant(PKDrawing()), canvasState: CanvasState())
         .frame(width: 400, height: 400)
         .background(Color.white)
 }

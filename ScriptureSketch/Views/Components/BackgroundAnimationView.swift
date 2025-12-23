@@ -13,19 +13,30 @@ typealias PlatformView = UIView
 struct BackgroundAnimationView: View {
     @Environment(\.managedObjectContext) private var viewContext
     
+    @Environment(\.colorScheme) var colorScheme
+    
     // Fetch recent items with images to use
     @FetchRequest(
         sortDescriptors: [SortDescriptor(\.creationDate, order: .reverse)],
-        predicate: NSPredicate(format: "imageData != nil"),
+        // Modified predicate to search for EITHER imageData OR imageDataDark being present
+        // Since we can't easily query "imageData != nil OR imageDataDark != nil" in one go for efficient CloudKit sync sometimes,
+        // we'll stick to basic fetch and filter in memory if needed, or assume old items have imageData.
+        // For now, let's keep the predicate simple or update it if we want to catch "Dark Mode Only" items (unlikely).
+        predicate: NSPredicate(format: "imageData != nil OR imageDataDark != nil"),
         animation: .default)
     private var items: FetchedResults<SketchItem>
     
     var body: some View {
         // Converting data to images. 
         // We limit to 20 to avoid memory pressure if images are large.
+        // We resolve the correct image variant (Light vs Dark) based on current environment.
         let images: [PlatformImage] = items.prefix(20).compactMap { item in
-            guard let data = item.imageData else { return nil }
-            return PlatformImage(data: data)
+            if colorScheme == .dark, let darkData = item.effectiveImageDataDark {
+                return PlatformImage(data: darkData)
+            } else if let lightData = item.effectiveImageData {
+                return PlatformImage(data: lightData)
+            }
+            return nil
         }
         
         SpriteKitContainer(userImages: images)
@@ -45,9 +56,9 @@ struct SpriteKitContainer: ViewRepresentable {
     }
     
     func updateScene(_ scene: ActingFallingImagesScene) {
-        if scene.userImages.count != userImages.count {
-            scene.userImages = userImages
-        }
+        // Always update images so that content changes (Light <-> Dark) are reflected
+        // even if the count remains the same.
+        scene.userImages = userImages
     }
 
     #if os(macOS)

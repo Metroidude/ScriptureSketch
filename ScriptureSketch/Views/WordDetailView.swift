@@ -132,13 +132,13 @@ struct WordDetailView: View {
             if let master = masterItem,
                let book = master.bookName,
                let masterWord = master.centerWord,
-               let color = master.textColor {
+               let color = master.textPosition {
                 DrawingEditorView(
                     book: book,
                     chapter: Int(master.chapter),
                     verse: Int(master.verse),
                     word: masterWord,
-                    textColor: color,
+                    textPosition: color,
                     itemToEdit: master
                 )
             }
@@ -150,10 +150,8 @@ struct WordDetailView: View {
     @ViewBuilder
     var billboardSection: some View {
         VStack(spacing: 12) {
-            if let image = masterImage {
-                Image(platformImage: image)
-                    .resizable()
-                    .aspectRatio(1, contentMode: .fit)
+            if let item = masterItem {
+                AdaptiveSketchImage(item: item)
                     .cornerRadius(12)
                     .shadow(radius: 5)
             } else {
@@ -234,12 +232,8 @@ struct ReferenceRow: View {
     var body: some View {
         HStack {
             // Optional thumbnail (only if drawing differs from master)
-            if hasDifferentDrawing,
-               let imageData = item.imageData,
-               let image = PlatformImage.from(data: imageData) {
-                Image(platformImage: image)
-                    .resizable()
-                    .aspectRatio(1, contentMode: .fit)
+            if hasDifferentDrawing {
+                AdaptiveSketchImage(item: item)
                     .frame(width: 40, height: 40)
                     .cornerRadius(4)
             }

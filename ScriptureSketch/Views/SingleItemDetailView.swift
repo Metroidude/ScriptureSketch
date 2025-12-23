@@ -47,9 +47,19 @@ struct SingleItemDetailView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
-                    Button(action: { isEditingDrawing = true }) {
+                    // Drawing Action
+                    #if os(macOS)
+                    Button(action: {}) {
                         Label("Edit Drawing", systemImage: "pencil.tip")
                     }
+                    .disabled(true)
+                    .help("Drawing is only supported on iOS devices")
+                    #else
+                    Button(action: { isEditingDrawing = true }) {
+                        Label(item.drawingData == nil ? "Add Drawing" : "Edit Drawing", systemImage: "pencil.tip")
+                    }
+                    #endif
+
                     Button(action: { isEditingMetadata = true }) {
                         Label("Edit Details", systemImage: "list.bullet.clipboard")
                     }
@@ -57,7 +67,7 @@ struct SingleItemDetailView: View {
                         Label("Delete", systemImage: "trash")
                     }
                 } label: {
-                    Image(systemName: "pencil.circle")
+                    Image(systemName: item.drawingData == nil ? "plus" : "pencil.circle")
                 }
             }
         }
@@ -78,13 +88,13 @@ struct SingleItemDetailView: View {
             // Go straight to Canvas
             if let book = item.bookName,
                let word = item.centerWord,
-               let color = item.textColor {
+               let position = item.textPosition {
                  DrawingEditorView(
                     book: book,
                     chapter: Int(item.chapter),
                     verse: Int(item.verse),
                     word: word,
-                    textColor: color,
+                    textPosition: position,
                     itemToEdit: item
                  )
             }
