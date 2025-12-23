@@ -12,10 +12,26 @@ import CoreData
 struct ScriptureSketchApp: App {
     let persistenceController = PersistenceController.shared
 
+    init() {
+        // Perform one-time migration to group existing items by word
+        MigrationService.shared.performMigrationIfNeeded(
+            context: persistenceController.container.viewContext
+        )
+    }
+
+    @State private var showingWelcome = true
+
     var body: some Scene {
         WindowGroup {
-            MainCatalogView()
-                .environment(\.managedObjectContext, persistenceController.container.viewContext)
+            Group {
+                if showingWelcome {
+                    WelcomeView(isActive: $showingWelcome)
+                } else {
+                    MainCatalogView()
+                        .transition(.opacity.animation(.easeIn(duration: 0.5)))
+                }
+            }
+            .environment(\.managedObjectContext, persistenceController.container.viewContext)
         }
     }
 }

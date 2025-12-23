@@ -6,6 +6,8 @@ struct DrawingEditorView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @Environment(\.dismiss) private var dismiss // Dismisses the whole flow
     
+    @Environment(\.undoManager) var undoManager
+
     // Metadata passed from Step 1
     let book: String
     let chapter: Int
@@ -32,18 +34,35 @@ struct DrawingEditorView: View {
             ZStack {
                 // Layer 1: White Background
                 Color.white
-                
-                // Layer 2: Center Word
-                Text(word)
-                    .font(.system(size: 100, weight: .bold)) // Large base size
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.1) // Shrink to fit
-                    .foregroundColor(textColor == "white" ? .white : .black)
-                    .padding(20) // Keep away from edges
-                    .allowsHitTesting(false) // Let touches pass through to Canvas
-                
-                // Layer 3: Drawing Canvas
-                CanvasView(drawing: $drawing)
+
+                // Layer ordering based on textColor (now represents position)
+                if textColor == "top" {
+                    // Drawing below, text on top
+                    CanvasView(drawing: $drawing)
+
+                    Text(word)
+                        .font(.system(size: 100, weight: .bold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.1)
+                        .foregroundStyle(
+                            .black.shadow(.drop(color: .white, radius: 2))
+                        )
+                        .padding(20)
+                        .allowsHitTesting(false)
+                } else {
+                    // Text below, drawing on top (default)
+                    Text(word)
+                        .font(.system(size: 100, weight: .bold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.1)
+                        .foregroundStyle(
+                            .black.shadow(.drop(color: .white, radius: 2))
+                        )
+                        .padding(20)
+                        .allowsHitTesting(false)
+
+                    CanvasView(drawing: $drawing)
+                }
             }
             .aspectRatio(1, contentMode: .fit) // Square Requirement
             .cornerRadius(12)
@@ -72,6 +91,24 @@ struct DrawingEditorView: View {
                     saveSketch()
                 }
             }
+            
+            ToolbarItemGroup(placement: .bottomBar) {
+                Button(action: {
+                    undoManager?.undo()
+                }) {
+                    Image(systemName: "arrow.uturn.backward")
+                }
+                .disabled(!(undoManager?.canUndo ?? false))
+                
+                Button(action: {
+                    undoManager?.redo()
+                }) {
+                    Image(systemName: "arrow.uturn.forward")
+                }
+                .disabled(!(undoManager?.canRedo ?? false))
+                
+                Spacer()
+            }
         }
         .alert("Error", isPresented: $showingError) {
             Button("OK", role: .cancel) { }
@@ -92,11 +129,15 @@ struct DrawingEditorView: View {
         let sketch: SketchItem
         if let existingItem = itemToEdit {
             sketch = existingItem
-            // Do NOT create new UUID or date if updating, preserve history (unless requested otherwise)
+            // Do NOT create new UUID or date if updating, preserve history
+            // Preserve existing sharedDrawingId (linked items share this)
         } else {
             sketch = SketchItem(context: viewContext)
             sketch.id = UUID()
             sketch.creationDate = Date()
+            // New items get their own sharedDrawingId
+            // (Other verses can link to this later via AddReferenceFormView)
+            sketch.sharedDrawingId = UUID()
         }
         
         // Update fields
@@ -131,23 +172,48 @@ struct DrawingEditorView: View {
     
     @MainActor
     func generateSnapshot() -> PlatformImage {
-        // Recreate the ZStack as a View for rendering
+        // Capture the canvas size and scale drawing to fill 1024x1024 output
+        let targetSize: CGFloat = 1024.0
+        let sourceRect = (canvasRect == .zero) ? drawing.bounds : canvasRect
+        let scale = (sourceRect.width > 0) ? (targetSize / sourceRect.width) : 1.0
+        
+        // Pre-render the drawing image
+        let drawingImage = drawing.image(from: sourceRect, scale: scale)
+        
+        // Recreate the ZStack as a View for rendering with same layer order as editor
         let renderer = ImageRenderer(content:
             ZStack {
-                Color.white
-                Text(word)
-                    .font(.system(size: 300, weight: .bold)) // Higher res for export
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.1)
-                    .foregroundColor(textColor == "white" ? .white : .black)
-                    .padding(60)
-                
-                // We need to render the PKDrawing too. 
-                // ImageRenderer can handle standard SwiftUI views.
-                // PKCanvasView isn't directly renderable by ImageRenderer easily without Image(uiImage:...)
-                // Standard PKDrawing approach:
-                // FIX: Use explicit 1024x1024 rect instead of drawing.bounds to avoid cropping/offset issues
-                Image(platformImage: drawing.image(from: CGRect(x: 0, y: 0, width: 1024, height: 1024), scale: 1.0))
+                // Background removed for transparency
+
+                if textColor == "top" {
+                    // Drawing below, text on top
+                    Image(platformImage: drawingImage)
+                        .resizable()
+                        .frame(width: 1024, height: 1024)
+
+                    Text(word)
+                        .font(.system(size: 300, weight: .bold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.1)
+                        .foregroundStyle(
+                            .black.shadow(.drop(color: .white, radius: 4))
+                        )
+                        .padding(60)
+                } else {
+                    // Text below, drawing on top (default)
+                    Text(word)
+                        .font(.system(size: 300, weight: .bold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.1)
+                        .foregroundStyle(
+                            .black.shadow(.drop(color: .white, radius: 4))
+                        )
+                        .padding(60)
+
+                    Image(platformImage: drawingImage)
+                        .resizable()
+                        .frame(width: 1024, height: 1024)
+                }
             }
             .frame(width: 1024, height: 1024)
         )
@@ -162,5 +228,17 @@ struct DrawingEditorView: View {
         }
 #endif
         return PlatformImage()
+    }
+}
+
+#Preview {
+    NavigationStack {
+        DrawingEditorView(
+            book: "John",
+            chapter: 3,
+            verse: 16,
+            word: "LOVE",
+            textColor: "black"
+        )
     }
 }

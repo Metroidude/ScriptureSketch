@@ -84,6 +84,45 @@ struct CanvasView: ViewRepresentable {
 #endif
 }
 
-#Preview {
+#Preview("Sample Drawing") {
+    // Render a sample PKDrawing as an Image (PKCanvasView doesn't preview reliably)
+    let sampleDrawing: PKDrawing = {
+        var drawing = PKDrawing()
+        let ink = PKInk(.pen, color: .blue)
+        let points: [CGPoint] = [
+            CGPoint(x: 50, y: 50),
+            CGPoint(x: 150, y: 150),
+            CGPoint(x: 250, y: 100),
+            CGPoint(x: 350, y: 200)
+        ]
+        var strokePoints: [PKStrokePoint] = []
+        for (index, point) in points.enumerated() {
+            strokePoints.append(PKStrokePoint(
+                location: point,
+                timeOffset: TimeInterval(index) * 0.1,
+                size: CGSize(width: 5, height: 5),
+                opacity: 1.0,
+                force: 1.0,
+                azimuth: 0,
+                altitude: .pi / 2
+            ))
+        }
+        let path = PKStrokePath(controlPoints: strokePoints, creationDate: Date())
+        drawing.strokes.append(PKStroke(ink: ink, path: path))
+        return drawing
+    }()
+    
+    let drawingImage = sampleDrawing.image(from: CGRect(x: 0, y: 0, width: 400, height: 400), scale: 2.0)
+    
+    Image(platformImage: drawingImage)
+        .resizable()
+        .frame(width: 400, height: 400)
+        .background(Color.white)
+        .cornerRadius(12)
+}
+
+#Preview("Empty Canvas") {
     CanvasView(drawing: .constant(PKDrawing()))
+        .frame(width: 400, height: 400)
+        .background(Color.white)
 }
