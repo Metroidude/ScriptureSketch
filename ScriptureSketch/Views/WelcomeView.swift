@@ -14,9 +14,12 @@ struct WelcomeView: View {
             VStack(spacing: 30) {
                 Spacer()
                 
-                Text("ScriptureSketch")
-                    .font(.system(size: 48, weight: .bold, design: .serif))
+                Text("Keyword")
+                    .font(.system(size: 150, weight: .bold, design: .serif))
                     .foregroundColor(.primary)
+                    .minimumScaleFactor(0.01)
+                    .lineLimit(1)
+                    .padding(.horizontal)
                 
                 Spacer()
                 

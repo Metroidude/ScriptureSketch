@@ -222,10 +222,20 @@ final class ActingFallingImagesScene: SKScene {
         spawnLoop()
     }
 
+    private var isPad: Bool {
+        #if os(iOS)
+        return UIDevice.current.userInterfaceIdiom == .pad
+        #else
+        return false
+        #endif
+    }
+
     // Spawn LESS often
     private func spawnLoop() {
         let spawn = SKAction.run { [weak self] in self?.spawnOne() }
-        let wait = SKAction.wait(forDuration: 0.9) // increase for fewer spawns
+        // More frequent on iPad (0.4) vs iPhone (0.9)
+        let waitDuration = isPad ? 0.4 : 0.9 
+        let wait = SKAction.wait(forDuration: waitDuration)
         run(.repeatForever(.sequence([spawn, wait])))
     }
 
@@ -236,7 +246,10 @@ final class ActingFallingImagesScene: SKScene {
         let node = SKSpriteNode(texture: textures.randomElement()!)
         node.alpha = 0.95
 
-        let scale = CGFloat.random(in: 0.18...0.30)
+        // Larger on iPad
+        let minScale: CGFloat = isPad ? 0.30 : 0.18
+        let maxScale: CGFloat = isPad ? 0.50 : 0.30
+        let scale = CGFloat.random(in: minScale...maxScale)
         node.setScale(scale)
 
         // Start just ABOVE the top
