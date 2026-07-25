@@ -18,6 +18,18 @@ struct DrawingEditorView: View {
     // Optional existing item for Editing Mode
     var itemToEdit: SketchItem?
     
+    @State private var currentTextPosition: String
+    
+    init(book: String, chapter: Int, verse: Int, word: String, textPosition: String, itemToEdit: SketchItem? = nil) {
+        self.book = book
+        self.chapter = chapter
+        self.verse = verse
+        self.word = word
+        self.textPosition = textPosition
+        self.itemToEdit = itemToEdit
+        self._currentTextPosition = State(initialValue: textPosition)
+    }
+    
     // State for Drawing
     @State private var drawing = PKDrawing()
     @State private var canvasRect: CGRect = .zero
@@ -30,6 +42,14 @@ struct DrawingEditorView: View {
     
     var body: some View {
         VStack {
+            Picker("Text Position", selection: $currentTextPosition) {
+                Text("Text Below").tag("below")
+                Text("Text On Top").tag("top")
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal)
+            .padding(.top, 8)
+            
             Spacer()
             
             // The Composition Area
@@ -38,7 +58,7 @@ struct DrawingEditorView: View {
                 Color.white
 
                 // Layer ordering based on textPosition
-                if textPosition == "top" {
+                if currentTextPosition == "top" {
                     // Drawing below, text on top
                     CanvasView(drawing: $drawing, canvasState: canvasState)
 
@@ -144,7 +164,7 @@ struct DrawingEditorView: View {
         sketch.chapter = Int16(chapter)
         sketch.verse = Int16(verse)
         sketch.centerWord = word
-        sketch.textPosition = textPosition
+        sketch.textPosition = currentTextPosition
         sketch.drawingData = drawing.dataRepresentation()
         sketch.imageData = imageLight
         sketch.imageDataDark = imageDark
@@ -187,7 +207,7 @@ struct DrawingEditorView: View {
         let renderer = ImageRenderer(content:
             ZStack {
                 // Transparent Background (No background modifier)
-                if textPosition == "top" {
+                if currentTextPosition == "top" {
                     // Drawing below, text on top
                     Image(platformImage: drawingImage)
                         .resizable()
